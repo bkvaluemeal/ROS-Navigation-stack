@@ -43,6 +43,8 @@
 
 #include <geometry_msgs/Twist.h>
 
+#include <iostream>
+
 namespace move_base {
 
   MoveBase::MoveBase(tf::TransformListener& tf) :
@@ -168,6 +170,8 @@ namespace move_base {
     dsrv_ = new dynamic_reconfigure::Server<move_base::MoveBaseConfig>(ros::NodeHandle("~"));
     dynamic_reconfigure::Server<move_base::MoveBaseConfig>::CallbackType cb = boost::bind(&MoveBase::reconfigureCB, this, _1, _2);
     dsrv_->setCallback(cb);
+
+    is_global_plan_good_ = false;
   }
 
   void MoveBase::reconfigureCB(move_base::MoveBaseConfig &config, uint32_t level){
@@ -852,6 +856,23 @@ namespace move_base {
       case CONTROLLING:
         ROS_DEBUG_NAMED("move_base","In controlling state.");
 
+        //check if plan is desireable
+        if(!is_global_plan_good_){
+          do{
+            response = 'n';
+            std::cout << "Is this global plan desireable? [y/n]" << std::endl;
+            std::cin >> response;
+          }while( !std::cin.fail() && response!='y' && response!='n' );
+
+          is_global_plan_good_ = (response == 'y') ? true : false;
+
+          ROS_INFO("Global plan is undesireable");
+          state_ = PLANNING;
+          break;
+        } else {
+          ROS_INFO("Executing plan to goal");
+        }
+
         //check to see if we've reached our goal
         if(tc_->isGoalReached()){
           ROS_DEBUG_NAMED("move_base","Goal reached!");
@@ -863,6 +884,9 @@ namespace move_base {
           lock.unlock();
 
           as_->setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached.");
+
+          is_global_plan_good_ = false;
+
           return true;
         }
 
