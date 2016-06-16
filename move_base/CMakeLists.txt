@@ -3,16 +3,28 @@ project(move_base)
 
 find_package(catkin REQUIRED
     COMPONENTS
-        cmake_modules
-        roscpp
-        pluginlib
         actionlib
+        base_local_planner
+        clear_costmap_recovery
+        cmake_modules
+        costmap_2d
         dynamic_reconfigure
+        geometry_msgs
         message_generation
+        ${PROJECT_NAME}_msgs
         nav_core
+        nav_msgs
+        navfn
+        pluginlib
+        roscpp
+        rospy
+        rotate_recovery
+        std_msgs
+        std_srvs
         tf
+        visualization_msgs
 )
-find_package(Eigen REQUIRED)
+find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN_DEFINITIONS})
 
 # dynamic reconfigure
@@ -22,8 +34,13 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
     CATKIN_DEPENDS
-        roscpp
         dynamic_reconfigure
+        geometry_msgs
+        ${PROJECT_NAME}_msgs
+        nav_msgs
+        roscpp
+        std_msgs
+        visualization_msgs
 )
 
 include_directories(
@@ -33,26 +50,26 @@ include_directories(
 )
 
 # move_base
-add_library(move_base
-  src/move_base.cpp
+add_library(${PROJECT_NAME}
+  src/${PROJECT_NAME}.cpp
 )
-target_link_libraries(move_base
+target_link_libraries(${PROJECT_NAME}
     ${Boost_LIBRARIES}
     ${catkin_LIBRARIES}
     )
-add_dependencies(move_base move_base_gencfg)
-add_dependencies(move_base geometry_msgs_gencpp)
+add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+add_dependencies(${PROJECT_NAME} geometry_msgs_generate_messages_cpp ${PROJECT_NAME}_msgs_generate_messages_cpp)
 
-add_executable(move_base_node
-  src/move_base_node.cpp
+add_executable(${PROJECT_NAME}_node
+  src/${PROJECT_NAME}_node.cpp
 )
-target_link_libraries(move_base_node move_base)
-set_target_properties(move_base_node PROPERTIES OUTPUT_NAME move_base)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
+set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 install(
     TARGETS
-        move_base
-        move_base_node
+        ${PROJECT_NAME}
+        ${PROJECT_NAME}_node
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
