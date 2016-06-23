@@ -45,6 +45,8 @@
 
 #include <iostream>
 
+#include "std_msgs/UInt8.h"
+
 namespace move_base {
 
   MoveBase::MoveBase(tf::TransformListener& tf) :
@@ -98,6 +100,9 @@ namespace move_base {
     //like nav_view and rviz
     ros::NodeHandle simple_nh("move_base_simple");
     goal_sub_ = simple_nh.subscribe<geometry_msgs::PoseStamped>("goal", 1, boost::bind(&MoveBase::goalCB, this, _1));
+
+    //for FlexBe
+    boolean_sub_ = simple_nh.subscribe<std_msgs::UInt8>("is_plan_good", 1, boost::bind(&MoveBase::isplangoodCB, this, _1));
 
     //we'll assume the radius of the robot to be consistent with what's specified for the costmaps
     private_nh.param("local_costmap/inscribed_radius", inscribed_radius_, 0.325);
@@ -171,7 +176,7 @@ namespace move_base {
     dynamic_reconfigure::Server<move_base::MoveBaseConfig>::CallbackType cb = boost::bind(&MoveBase::reconfigureCB, this, _1, _2);
     dsrv_->setCallback(cb);
 
-    is_global_plan_good_ = false;
+    is_global_plan_good_ = 0;
   }
 
   void MoveBase::reconfigureCB(move_base::MoveBaseConfig &config, uint32_t level){
@@ -270,6 +275,10 @@ namespace move_base {
     action_goal.goal.target_pose = *goal;
 
     action_goal_pub_.publish(action_goal);
+  }
+
+  void MoveBase::isplangoodCB(const std_msgs::UInt8::ConstPtr& msg){
+    is_global_plan_good_ = msg->data;
   }
 
   void MoveBase::clearCostmapWindows(double size_x, double size_y){
@@ -841,6 +850,7 @@ namespace move_base {
     }
 
     //the move_base state machine, handles the control logic for navigation
+    ros::NodeHandle n;
     switch(state_){
       //if we are in a planning state, then we'll attempt to make a plan
       case PLANNING:
@@ -857,20 +867,16 @@ namespace move_base {
         ROS_DEBUG_NAMED("move_base","In controlling state.");
 
         //check if plan is desireable
-        if(!is_global_plan_good_){
-          do{
-            response = 'n';
-            std::cout << "Is this global plan desireable? [y/n]" << std::endl;
-            std::cin >> response;
-          }while( !std::cin.fail() && response!='y' && response!='n' );
+        while(is_global_plan_good_ == 0 && n.ok()){}
 
-          is_global_plan_good_ = (response == 'y') ? true : false;
-
-          ROS_INFO("Global plan is undesireable");
+        if(is_global_plan_good_ == 2){
           state_ = PLANNING;
+          is_global_plan_good_ == 0;
           break;
-        } else {
+        } else if(is_global_plan_good_ == 1) {
           ROS_INFO("Executing plan to goal");
+        } else {
+          break;
         }
 
         //check to see if we've reached our goal
@@ -885,7 +891,7 @@ namespace move_base {
 
           as_->setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached.");
 
-          is_global_plan_good_ = false;
+          is_global_plan_good_ = 0;
 
           return true;
         }
